@@ -4328,6 +4328,10 @@ void Object::parseLineInfoForCU(Dwarf_Die cuDIE, LineInformation* li_for_module)
     }
 
     assert( status == DW_DLV_OK );
+    char** srcfiles;
+    Dwarf_Signed fileCount;
+
+    status = dwarf_srcfiles(cuDIE, &srcfiles, &fileCount, NULL);
     /* The 'lines' returned are actually interval markers; the code
      generated from lineNo runs from lineAddr up to but not including
      the lineAddr of the next line. */
@@ -4335,7 +4339,7 @@ void Object::parseLineInfoForCU(Dwarf_Die cuDIE, LineInformation* li_for_module)
     Dwarf_Unsigned previousLineNo = 0;
     Dwarf_Signed previousLineColumn = 0;
     Dwarf_Addr previousLineAddr = 0x0;
-    char * previousLineSource = NULL;
+    Dwarf_Unsigned previousLineSource = NULL;
 
     Offset baseAddr = getBaseAddress();
 
@@ -4375,8 +4379,10 @@ void Object::parseLineInfoForCU(Dwarf_Die cuDIE, LineInformation* li_for_module)
 
 
         char * lineSource;
-        status = dwarf_linesrc( lineBuffer[i], & lineSource, NULL );
+        Dwarf_Unsigned srcfileindex;
+        status = dwarf_line_srcfileno(lineBuffer[i], &srcfileindex, NULL);
         if ( status != DW_DLV_OK ) { continue; }
+        lineSource = srcfiles[srcfileindex];
 
         Dwarf_Bool isEndOfSequence;
         status = dwarf_lineendsequence( lineBuffer[i], & isEndOfSequence, NULL );
@@ -4387,7 +4393,7 @@ void Object::parseLineInfoForCU(Dwarf_Die cuDIE, LineInformation* li_for_module)
             /* If we're talking about the same (source file, line number) tuple,
 	 and it isn't the end of the sequence, we can coalesce the range.
 	 (The end of sequence marker marks discontinuities in the ranges.) */
-            if ( lineNo == previousLineNo && strcmp( lineSource, previousLineSource ) == 0
+            if ( lineNo == previousLineNo && ( srcfileindex == previousLineSource )
                  && ! isEndOfSequence )
             {
                 /* Don't update the prev* values; just keep going until we hit the end of
@@ -4395,18 +4401,12 @@ void Object::parseLineInfoForCU(Dwarf_Die cuDIE, LineInformation* li_for_module)
                 continue;
             } /* end if we can coalesce this range */
 
-            char *canonicalLineSource;
+            char *canonicalLineSource = srcfiles[previousLineSource];
             if (truncateLineFilenames) {
-                canonicalLineSource = strrchr( previousLineSource, '/' );
-                if( canonicalLineSource == NULL ) { canonicalLineSource = previousLineSource; }
+                canonicalLineSource = strrchr( srcfiles[previousLineSource], '/' );
+                if( canonicalLineSource == NULL ) { canonicalLineSource = srcfiles[previousLineSource]; }
                 else { ++canonicalLineSource; }
             }
-            else {
-                canonicalLineSource = previousLineSource;
-            }
-
-
-
 
             Dyninst::Offset startAddrToUse = previousLineAddr;
             Dyninst::Offset endAddrToUse = lineAddr;
@@ -4432,9 +4432,8 @@ void Object::parseLineInfoForCU(Dwarf_Die cuDIE, LineInformation* li_for_module)
             isPreviousValid = false;
         }
         else {
-            if( isPreviousValid ) { dwarf_dealloc( dbg, previousLineSource, DW_DLA_STRING ); }
             previousLineNo = lineNo;
-            previousLineSource = lineSource;
+            previousLineSource = srcfileindex;
             previousLineAddr = lineAddr;
             previousLineColumn = lineOff;
 
@@ -4444,6 +4443,11 @@ void Object::parseLineInfoForCU(Dwarf_Die cuDIE, LineInformation* li_for_module)
 
 /* Free this CU's source lines. */
     dwarf_srclines_dealloc(dbg, lineBuffer, lineCount);
+    for(int i = 0; i < fileCount; ++i)
+    {
+        dwarf_dealloc(dbg, srcfiles[i], DW_DLA_STRING);
+    }
+    dwarf_dealloc(dbg, srcfiles, DW_DLA_LIST);
 }
 
 
