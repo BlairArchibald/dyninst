@@ -419,6 +419,7 @@ namespace Dyninst {
 
 
         virtual bool addStaticClassVariable(const std::vector<VariableLocation> &locs, Type *type) {
+            return false;
         }
 
 
