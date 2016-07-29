@@ -374,7 +374,7 @@ namespace Dyninst {
     class ModuleFixer: public DwarfWalker {
     private:
         virtual bool findType(Type *&type, bool defaultToVoid)  {
-            return false;
+            return true;
         }
     public:
         virtual std::string filename() const {
@@ -401,7 +401,7 @@ namespace Dyninst {
 
         virtual void setFuncFromLowest(Address lowest) {
             m_obj->setModuleForOffset(lowest, modname);
-            setParseChild(false);
+            //setParseChild(false);
         }
 
 
@@ -419,7 +419,7 @@ namespace Dyninst {
 
 
         virtual bool addStaticClassVariable(const std::vector<VariableLocation> &locs, Type *type) {
-            return false;
+            return true;
         }
 
 
@@ -435,7 +435,7 @@ namespace Dyninst {
             return NULL;
         }
         virtual bool parseVariable() {
-            return false;
+            return true;
         }
     private:
         Object *m_obj;
